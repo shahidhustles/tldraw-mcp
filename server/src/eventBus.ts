@@ -47,15 +47,15 @@ export type TldrawOperationPayload =
   | TldrawFlowchartStepPayload
   | TldrawSnapshotRequestPayload
   | TldrawSnapshotResponsePayload
-  | Record<string, unknown>; 
-
-// Create a singleton event emitter to broadcast tldraw operations
-export const eventBus = new EventEmitter();
+  | Record<string, unknown>;
 
 export type TldrawOperation = {
   type: string;
   payload: TldrawOperationPayload;
 };
+
+// Create a standard event emitter for tldraw operations
+export const eventBus = new EventEmitter();
 
 // Helper function to broadcast tldraw operations
 export function broadcastOperation(operation: TldrawOperation): void {

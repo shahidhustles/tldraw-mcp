@@ -7,16 +7,25 @@ import { useEffect, useRef } from "react";
 export default function TldrawEditor() {
   const editorRef = useRef<Editor | null>(null);
   const shapesRef = useRef<Record<string, string>>({});
-
   useEffect(() => {
     // Only run in the browser
     if (typeof window === "undefined") return;
 
+    console.log(
+      "[TldrawEditor] Setting up EventSource connection to /api/events"
+    );
     const eventSource = new EventSource("/api/events");
 
+    eventSource.onopen = () => {
+      console.log("[TldrawEditor] EventSource connection opened");
+    };
+
+    eventSource.onerror = (error) => {
+      console.error("[TldrawEditor] EventSource error:", error);
+    };
     eventSource.addEventListener("tldraw-operation", (event) => {
       const operation = JSON.parse(event.data);
-      console.log("Received tldraw operation:", operation);
+      console.log("[TldrawEditor] Received tldraw operation:", operation);
 
       // Apply the operation to the tldraw editor
       if (editorRef.current) {
@@ -24,19 +33,35 @@ export default function TldrawEditor() {
 
         switch (operation.type) {
           case "createShape": {
-            const { shapeType, x, y, width, height, text } = operation.payload;
-
-            // Create the shape based on the type
+            const { shapeType, x, y, width, height, text } = operation.payload; // Create the shape based on the type - tldraw uses "geo" for basic shapes
             const id = editor.createShape({
-              type: shapeType,
+              type: "geo",
               x,
               y,
               props: {
                 w: width,
                 h: height,
-                text: text || "",
+                geo:
+                  shapeType === "rectangle"
+                    ? "rectangle"
+                    : shapeType === "ellipse"
+                    ? "ellipse"
+                    : shapeType === "triangle"
+                    ? "triangle"
+                    : shapeType === "diamond"
+                    ? "diamond"
+                    : "rectangle",
               },
-            });
+            }); // If text is provided, update the shape to add text
+            if (text && typeof id === "string") {
+              editor.updateShape({
+                id,
+                type: "geo",
+                props: {
+                  text: text,
+                },
+              });
+            }
 
             // Store the created shape ID for future reference
             if ("stepNumber" in operation.payload && typeof id === "string") {
@@ -94,15 +119,24 @@ export default function TldrawEditor() {
               operation.payload;
 
             const id = editor.createShape({
-              type: "rectangle",
+              type: "geo",
               x,
               y,
               props: {
                 w: 160,
                 h: 80,
-                text: title + (description ? `\n${description}` : ""),
+                geo: "rectangle",
               },
-            });
+            }); // Update the shape to add the text content
+            if (title && typeof id === "string") {
+              editor.updateShape({
+                id,
+                type: "geo",
+                props: {
+                  text: title + (description ? `\n${description}` : ""),
+                },
+              });
+            }
 
             if (typeof id === "string") {
               shapesRef.current[`step-${stepNumber}`] = id;
@@ -158,9 +192,23 @@ export default function TldrawEditor() {
             console.warn("Unknown operation type:", operation.type);
         }
       }
+    }); // Add handler for connected event
+    eventSource.addEventListener("connected", (event) => {
+      console.log("[TldrawEditor] Received connected event:", event.data);
+    });
+
+    // Add handler for heartbeat event
+    eventSource.addEventListener("heartbeat", (event) => {
+      console.log("[TldrawEditor] Received heartbeat event:", event.data);
+    });
+
+    // Add handler for debug event
+    eventSource.addEventListener("debug", (event) => {
+      console.log("[TldrawEditor] Received debug event:", event.data);
     });
 
     return () => {
+      console.log("[TldrawEditor] Closing EventSource connection");
       eventSource.close();
     };
   }, []);

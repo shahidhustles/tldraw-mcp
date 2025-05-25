@@ -5,7 +5,18 @@ export async function POST(req: NextRequest) {
   try {
     // Parse the snapshot data from the request
     const data = await req.json();
-    const { requestId, snapshot } = data; // Forward the snapshot to the MCP server
+    const { requestId, snapshot } = data;
+
+    console.log(
+      `[API] Snapshot route: Received snapshot request with ID: ${requestId}`
+    );
+    console.log(
+      `[API] Snapshot route: Snapshot data size: ${
+        JSON.stringify(snapshot).length
+      } bytes`
+    );
+
+    // Forward the snapshot to the MCP server
     const mcpRequest = http.request({
       hostname: "localhost",
       port: 3002,
@@ -18,6 +29,8 @@ export async function POST(req: NextRequest) {
 
     mcpRequest.write(JSON.stringify({ requestId, snapshot }));
     mcpRequest.end();
+
+    console.log(`[API] Snapshot route: Forwarded snapshot to HTTP server`);
 
     return NextResponse.json({ success: true });
   } catch (error) {

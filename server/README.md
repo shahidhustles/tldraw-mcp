@@ -2,7 +2,23 @@
 
 This is the MCP server component for the tldraw-Claude integration. It handles communication with Claude Desktop through the Model Context Protocol (MCP) and provides an HTTP server for Server-Sent Events (SSE) to communicate with the frontend.
 
+## System Architecture
+
+This server consists of two main components:
+
+1. **MCP Server (index.ts)**: Handles function calls from Claude via stdin/stdout
+2. **HTTP Server (httpServer.ts)**: Provides SSE endpoints for frontend communication
+
+These components communicate through an EventBus that manages event propagation.
+
 ## Getting Started
+
+### Prerequisites
+
+- Node.js 18+ installed
+- TypeScript installed globally (`npm install -g typescript`)
+
+### Installation
 
 1. Install dependencies:
 
@@ -14,28 +30,41 @@ This is the MCP server component for the tldraw-Claude integration. It handles c
 
    ```powershell
    npm run build
-   # or use the build.bat script
    ```
 
-3. Start the MCP server (for Claude Desktop):
+### Running the Servers
+
+You need to run both servers for the system to work properly:
+
+1. **Start the HTTP Server (in one terminal):**
+
+   ```powershell
+   npm run start:http
+   ```
+
+   This starts the HTTP server on port 3002, which handles SSE communication with the frontend.
+
+2. **Start the MCP Server (in another terminal):**
 
    ```powershell
    npm start
-   # or use the start.bat script (builds and runs)
    ```
 
-4. In a separate terminal, start the HTTP server (for SSE):
-   ```powershell
-   npm run start:http
-   # or use the start-http.bat script
-   ```
+   This starts the MCP server that communicates with Claude Desktop.
 
-## Server Components
+### Development Mode
 
-- The MCP server: Communicates with Claude through stdin/stdout (runs on default port)
-- The HTTP server: Provides SSE endpoints for the frontend (runs on port 3002)
+For development with automatic restarts:
 
-## Configuration
+```powershell
+# For the MCP server (in one terminal)
+npm run dev
+
+# For the HTTP server (in another terminal)
+npm run dev:http
+```
+
+## Claude Desktop Configuration
 
 To connect Claude Desktop to this MCP server, add the following to your Claude Desktop configuration file (typically located at `%AppData%\Claude\claude_desktop_config.json`):
 
@@ -76,10 +105,93 @@ npm run dev:http
 - **HTTP Server (httpServer.ts)**: Provides SSE endpoints for frontend communication
 - **EventBus**: Manages internal event propagation and provides type-safe communication
 
+## Architecture
+
+### Component Overview
+
+1. **MCP Server (index.ts)**
+
+   - Handles function calls from Claude via stdin/stdout
+   - Defines available tools that Claude can use
+   - Sends and receives operations through the EventBus
+
+2. **HTTP Server (httpServer.ts)**
+
+   - Provides SSE endpoints for frontend communication
+   - Listens on port 3002
+   - Forwards operations from EventBus to connected clients
+   - Receives snapshot data from frontend
+
+3. **EventBus (eventBus.ts)**
+   - Manages internal event propagation
+   - Provides type-safe communication between components
+   - Handles event subscription and broadcasting
+
+### Communication Flow
+
+```mermaid
+graph TD
+    Claude[Claude Desktop] <--> MCP[MCP Server]
+    MCP <--> EventBus[EventBus]
+    EventBus <--> HTTP[HTTP Server]
+    HTTP <--> Next[Next.js Frontend]
+    Next <--> Tldraw[Tldraw Canvas]
+```
+
+### Sequence Diagram for Operations
+
+```
+Claude → MCP Server → EventBus → HTTP Server → Next.js → Tldraw Canvas
+```
+
+### Sequence Diagram for Snapshots
+
+```
+Claude → MCP Server → EventBus → HTTP Server → Next.js → Tldraw Canvas
+Tldraw Canvas → Next.js → HTTP Server → EventBus → MCP Server → Claude
+```
+
 ## Type Safety
 
-The server implements TypeScript interfaces for all message types to ensure type safety across the application. This includes:
+The server implements TypeScript interfaces for all message types to ensure type safety across the application:
 
-- Specific payload types for each event
-- Type guards for runtime type checking
-- Strong typing for all MCP function parameters
+```typescript
+// Example payload types in eventBus.ts
+export interface TldrawShapePayload {
+  shapeType: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  text?: string;
+}
+
+export interface TldrawConnectPayload {
+  fromId: string;
+  toId: string;
+  arrowType?: "straight" | "curved" | "orthogonal";
+}
+```
+
+## Debugging
+
+### Logging
+
+The system includes extensive logging to help diagnose issues:
+
+- **EventBus logs:** Show operations being broadcast
+- **HTTP Server logs:** Show incoming/outgoing connections and events
+- **MCP Server logs:** Show function calls from Claude
+
+### Common Issues
+
+1. **Type errors:** If you encounter "any" type errors, check the interface definitions in `eventBus.ts`
+2. **Event handling:** Make sure event names match between components (`tldraw-operation`, `snapshot-response`, etc.)
+3. **Port conflicts:** If port 3002 is already in use, modify the port in `httpServer.ts` and update the API routes
+
+## Development Tips
+
+1. Use the development scripts for automatic reloading during development
+2. Keep the browser console open to monitor event flow
+3. Test each operation type individually before complex scenarios
+4. Check Claude Desktop logs if MCP communication isn't working
